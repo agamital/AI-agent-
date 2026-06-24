@@ -50,10 +50,10 @@ User: "Analyze INTU, peers: ADBE CRM NOW"
 | Task | File | Purpose |
 |---|---|---|
 | Data schemas | `schemas/company.py`, `schemas/report.py` | Pydantic models for all inputs/outputs |
-| SEC EDGAR tool + retry | `tools/sec_tool.py` | Fetch revenue, EPS, assets from SEC API. Retry on HTTP errors, return None + log on missing data |
-| yfinance tool + retry | `tools/market_tool.py` | Historical prices, current quote. Fallback to cached data if API fails |
-| Financial metrics calculator | `tools/metrics_calculator.py` | P/E, P/B, ROE, debt/equity, current ratio |
-| Technical indicators calculator | `tools/technical_calculator.py` | SMA, EMA, RSI, MACD |
+| SEC EDGAR tool | `tools/sec_tool.py` | Fetch revenue, EPS, assets from SEC API. Returns None + logs on failure. (Retry on transient HTTP errors still TODO — see JOURNAL.) |
+| yfinance tool | `tools/market_tool.py` | Historical prices, current quote. Returns None + logs on failure. (Retry/fallback still TODO — see JOURNAL.) |
+| Financial metrics calculator | `tools/metrics_tool.py` | P/E, P/B, P/S, ROE, ROA, debt/equity, net + operating margins |
+| Technical indicators calculator | `tools/technical_tool.py` | SMA, EMA, RSI, MACD |
 | Peer comparison tool | `tools/peer_tool.py` | Side-by-side metrics table across tickers |
 | Data validator | `validation/data_validator.py` | Flags missing fields clearly — never let LLM fill gaps |
 | Unit tests for all tools | `tests/test_tools.py` | Test with AAPL. Test missing-data path too |

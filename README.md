@@ -27,19 +27,34 @@ LLM agents interpret the results and generate structured explanations.
 
 The LLM should not invent financial numbers or calculate financial metrics by itself.
 
-## Planned Tools
+## Tools (implemented)
 
-- SEC or company facts retrieval tool
-- Market data retrieval tool
-- Financial metrics calculator
-- Technical indicators calculator
-- Peer comparison tool
+All five tools are built, are pure Python (no LLM calls), and handle their own
+errors — returning `None` and logging on failure rather than crashing.
 
-## Planned Agents
+- **SEC EDGAR tool** (`tools/sec_tool.py`) — ticker → CIK lookup (disk-cached),
+  company-facts retrieval, and extraction of the latest annual financials.
+- **Market data tool** (`tools/market_tool.py`) — current price, 52-week range,
+  market cap, beta, and 6 months of price history via yfinance.
+- **Financial metrics calculator** (`tools/metrics_tool.py`) — valuation and
+  profitability ratios (P/E, P/B, P/S, ROE, ROA, D/E, margins).
+- **Technical indicators calculator** (`tools/technical_tool.py`) — SMA, EMA,
+  RSI (Wilder's smoothing), and MACD.
+- **Peer comparison tool** (`tools/peer_tool.py`) — runs the full data pipeline
+  for a company and its peers and returns side-by-side metrics.
+
+## Data Validation (implemented)
+
+`validation/data_validator.py` inspects a data model for missing (`None`) fields
+and returns plain-English warnings, so an agent can disclose data gaps instead of
+letting the LLM invent values.
+
+## Planned Agents (not yet built)
 
 - Investment Research Orchestrator
 - Fundamental Analysis Agent
 - Technical Analysis Agent
+- Peer Comparison Agent
 - Report Generation Agent
 
 ## Main Project Structure
@@ -87,7 +102,18 @@ Create a local .env file based on .env.example.
 
 Never commit the real .env file to GitHub.
 
-## Planned Commands
+## Testing (implemented)
+
+The tools and data validator are covered by 22 unit tests. The pure-math tools
+(metrics, technical indicators, validator) are tested directly; the network tools
+(SEC EDGAR, yfinance) are tested with mocked responses, so the whole suite runs
+offline in under one second.
+
+Run tests:
+
+poetry run pytest -q
+
+## Planned Commands (not yet built)
 
 Run one analysis:
 
@@ -96,10 +122,6 @@ poetry run python scripts/run_agent.py --ticker INTU --peers ADBE CRM NOW
 Run Streamlit UI:
 
 poetry run streamlit run src/investment_agent/app/streamlit_app.py
-
-Run tests:
-
-poetry run pytest -q
 
 ## Team Workflow
 
@@ -123,4 +145,12 @@ poetry run pytest -q
 
 ## Project Status
 
-Initial architecture setup in progress.
+**Days 1–2 complete (Foundation).** Done so far:
+
+- All Pydantic data schemas
+- All 5 data/calculation tools, with error handling
+- Data validator for missing-field detection
+- 22 passing unit tests (pure-math direct, network tools mocked)
+
+Next: Groq LLM client + the 6-component system prompt (Day 3), then conversational
+memory and the LangGraph agents/orchestrator.
