@@ -130,6 +130,9 @@ For the RSI test, I computed the expected value manually (period=2, prices [1,2,
 **Decision: `pytest.approx` for all floating-point assertions**
 Floating-point arithmetic can produce tiny rounding differences (e.g. 3.9999999998 instead of 4.0). `pytest.approx` checks "close enough" rather than exact equality, preventing false test failures from meaningless decimal dust while still catching real math bugs.
 
+**KNOWN GAP: tools do not yet retry on transient failures**
+The submission checklist requires "Error handling with retry/fallback on all tools," and PLAN.md originally described retry-on-HTTP-error for the SEC tool and cache fallback for the market tool. As built, the tools only do `try/except → return None + log`. That is honest error handling but not retry/fallback. This is acceptable for Days 1–2 but must be closed before submission. **TODO (target Day 8–9): add a retry wrapper for transient HTTP errors (timeouts, 5xx, rate limits) to `sec_tool.py` and `market_tool.py`.** README and PLAN have been worded to not overclaim this until it is built.
+
 ---
 
 ## Function Reference
