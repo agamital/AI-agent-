@@ -1,24 +1,35 @@
 import logging
-
 import yfinance as yf
-
 from investment_agent.schemas.company import MarketData
 
 logger = logging.getLogger(__name__)
 
 
 def get_market_data(ticker: str) -> MarketData | None:
-    """Fetch current market data and 90-day price history for a ticker via yfinance.
-
-    Returns a MarketData model, or None if the request fails.
-    """
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
 
         hist = stock.history(period="6mo")
-        price_history = hist["Close"].round(2).tolist() if not hist.empty else None
-        price_dates = [d.strftime("%Y-%m-%d") for d in hist.index] if not hist.empty else None
+
+        if not hist.empty:
+            raw_prices = hist["Close"].round(2).tolist()
+            price_history = [p for p in raw_prices if p == p]
+            price_dates = [
+                d.strftime("%Y-%m-%d")
+                for d, p in zip(hist.index, raw_prices)
+                if p == p
+            ]
+        else:
+            price_history = None
+            price_dates = None
+
+        # market_cap / beta — try multiple field names (ETFs use different keys)
+        market_cap = (
+            info.get("marketCap")
+            or info.get("totalAssets")  # ETFs report AUM here
+        )
+        beta = info.get("beta") or info.get("beta3Year")
 
         return MarketData(
             ticker=ticker,
@@ -26,9 +37,9 @@ def get_market_data(ticker: str) -> MarketData | None:
             previous_close=info.get("previousClose") or info.get("regularMarketPreviousClose"),
             week_52_high=info.get("fiftyTwoWeekHigh"),
             week_52_low=info.get("fiftyTwoWeekLow"),
-            market_cap=info.get("marketCap"),
+            market_cap=market_cap,
             average_volume=info.get("averageVolume"),
-            beta=info.get("beta"),
+            beta=beta,
             price_history=price_history,
             price_dates=price_dates,
         )
