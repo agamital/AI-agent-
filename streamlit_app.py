@@ -6,11 +6,12 @@ Integrated with Intent Router for Hebrew/English natural language support.
 import os
 import sys
 from datetime import datetime
-
 import streamlit as st
 
 # Ensure src is in path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+src_path = os.path.join(os.path.dirname(__file__), "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 from investment_agent.agents.research_agent import InvestmentResearchAgent
 from investment_agent.agents.intent_router import parse_intent
@@ -84,9 +85,9 @@ if user_input:
 
     # 3. Handle Intent
     with st.chat_message("assistant"):
-        if intent_data["intent"] == "analyze" and intent_data["ticker"]:
+        if intent_data.get("intent") == "analyze" and intent_data.get("ticker"):
             ticker = intent_data["ticker"]
-            peers = intent_data["peers"]
+            peers = intent_data.get("peers", [])
 
             st.write(f"🔍 Detected Intent: **Analyze {ticker}**" + (f" vs {', '.join(peers)}" if peers else ""))
 
@@ -95,16 +96,16 @@ if user_input:
                 st.markdown(f'<div class=\"ir-report\">{report}</div>', unsafe_allow_html=True)
                 st.session_state.chat_history.append(("assistant", report))
 
-        elif intent_data["intent"] == "followup":
+        elif intent_data.get("intent") == "followup":
             with st.spinner("Thinking..."):
                 answer = st.session_state.agent.follow_up(user_input)
                 st.markdown(answer)
                 st.session_state.chat_history.append(("assistant", answer))
 
         else:
-            msg = "I didn't quite catch that. Try asking to 'Analyze [Stock]' or ask a follow-up question about the last analysis."
-            if intent_data["original_language"] == "he":
-                msg = "לא הצלחתי להבין את הבקשה. נסה לבקש 'נתח את [מניה]' או שאל שאלת המשך על הניתוח האחרון."
+            msg = "I didn't quite catch that. Try asking to 'Analyze [Stock]' or ask a follow-up question."
+            if intent_data.get("original_language") == "he":
+                msg = "לא הצלחתי להבין את הבקשה. נסה לבקש 'נתח את [מניה]' או שאל שאלת המשך."
             st.write(msg)
             st.session_state.chat_history.append(("assistant", msg))
 """
