@@ -18,9 +18,8 @@ from investment_agent.agents.research_agent import InvestmentResearchAgent
 from investment_agent.agents.intent_router import parse_intent
 from investment_agent.agents.structured_output import analyse_structured
 from investment_agent.reporting.charts import (
-    price_chart, rsi_gauge, metrics_bar, snapshot_metrics, usage_bar,
+    price_chart, rsi_gauge, metrics_bar, snapshot_metrics,
 )
-from investment_agent.llm.client import USAGE
 
 # ═════════════════════════════════════════════════════════════════════════════
 st.set_page_config(page_title="Investment Research Agent", page_icon="📈",
@@ -59,6 +58,16 @@ section[data-testid="stSidebar"] { background:#fff; border-right:1px solid var(-
 .ir-chip { font:500 12px 'IBM Plex Mono',monospace; padding:7px 13px; border-radius:8px; background:var(--accSoft); color:var(--acc); direction:rtl; }
 .ir-warn-banner { display:flex; gap:12px; padding:13px 16px; border-radius:12px; background:#fdf6e0; border:1px solid #f1e3b8; margin:8px 0; font-size:12.5px; color:#8a6a16; }
 .ir-err-banner { padding:14px 18px; border-radius:12px; background:var(--negSoft); border:1px solid #f4c4c0; margin:8px 0; font-size:13px; color:#9a3a34; }
+.ir-rephead { display:flex; align-items:center; gap:14px; }
+.ir-repicon { width:48px; height:48px; border-radius:12px; background:var(--chip); display:flex; align-items:center; justify-content:center; font:600 16px 'IBM Plex Mono',monospace; }
+.ir-metric-card { background:#fff; border:1px solid var(--bd); border-radius:14px; padding:14px 18px; box-shadow:0 1px 3px rgba(0,0,0,.06); margin:6px 0; }
+.ir-card-title { font-size:13px; font-weight:600; color:#17171c; margin-bottom:10px; }
+.ir-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ir-table td { padding:8px 4px; border-bottom:1px solid var(--bd); }
+.ir-table tr:last-child td { border-bottom:none; }
+.ir-theme { display:inline-block; font-size:11px; padding:4px 9px; border-radius:7px; background:var(--chip); color:var(--mut); margin:0 4px 4px 0; }
+.ir-narrative { background:#fff; border:1px solid var(--bd); border-radius:14px; padding:6px 20px 14px; box-shadow:0 1px 3px rgba(0,0,0,.06); margin:8px 0; }
+.ir-narrative h2 { font-size:14.5px; margin-top:14px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -66,7 +75,7 @@ section[data-testid="stSidebar"] { background:#fff; border-right:1px solid var(-
 def _keys_present():
     return bool(os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"))
 
-for key, default in [("agent", None), ("chat", []), ("current_ticker", None), ("last_run", None), ("pending_input", None)]:
+for key, default in [("agent", None), ("chat", []), ("current_ticker", None), ("last_run", None)]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -105,46 +114,6 @@ with st.sidebar:
         st.markdown(f'<div style="display:flex;justify-content:space-between;font-size:12.5px;margin:5px 0;">'
                     f'<span><span class="ir-dot" style="background:var(--pos);margin-right:8px;"></span>{name}</span>'
                     f'<span class="mono" style="color:var(--mut);font-size:10.5px;">{note}</span></div>', unsafe_allow_html=True)
-    # ── API quota meters ──
-    st.divider()
-    st.markdown('<div class="ir-side-label">API quota</div>', unsafe_allow_html=True)
-    g = USAGE.get("groq", {})
-
-    shown_something = False
-
-    # Daily quota (most useful — shows even when exhausted)
-    if g.get("daily_limit"):
-        remaining = g.get("daily_remaining", 0)
-        limit = g["daily_limit"]
-        pct = remaining / limit * 100 if limit else 0
-        fig = usage_bar(remaining, limit, "Groq tokens/day")
-        if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        # Clear label: how much remains + reset time
-        color = "var(--neg)" if pct < 20 else ("var(--mut)" if pct < 50 else "var(--pos)")
-        label = f'<span style="color:{color};font-weight:600;">נשאר {remaining:,} ({pct:.0f}%)</span>'
-        if g.get("daily_reset"):
-            label += f' <span style="color:var(--fnt);">· מתחדש בעוד {g["daily_reset"]}</span>'
-        st.markdown(f'<div style="font-size:10.5px;margin-top:-6px;">{label}</div>', unsafe_allow_html=True)
-        shown_something = True
-
-    # Per-minute quota (when calls succeed)
-    if g.get("remaining_tokens") is not None and g.get("limit_tokens"):
-        fig = usage_bar(g["remaining_tokens"], g["limit_tokens"], "Groq tokens/min")
-        if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        reset = g.get("reset")
-        if reset:
-            st.markdown(f'<div style="font-size:10.5px;color:var(--fnt);margin-top:-6px;">resets in {reset}</div>', unsafe_allow_html=True)
-        shown_something = True
-
-    if not shown_something:
-        st.markdown('<div style="font-size:11.5px;color:var(--mut);">Groq: no calls yet</div>', unsafe_allow_html=True)
-
-    gem = USAGE.get("gemini", {})
-    if gem.get("used_requests", 0) > 0:
-        st.markdown(f'<div style="font-size:11.5px;color:var(--mut);margin-top:6px;">Gemini fallback used: {gem["used_requests"]}x</div>', unsafe_allow_html=True)
-
     if st.session_state.last_run:
         st.divider()
         st.markdown('<div class="ir-side-label">Last run</div>', unsafe_allow_html=True)
@@ -173,27 +142,43 @@ def render_report(res):
     news = res.get("news")
     peers_data = res.get("peers_data")
 
-    # Header row
+    from investment_agent.reporting.charts import (
+        valuation_badge, rsi_badge, macd_badge, sma_badge,
+    )
+
+    # ── Report header ──
     price_str = f"${market.current_price}" if market and market.current_price else "—"
+    delta_html = ""
+    if market and market.current_price and market.previous_close:
+        pct = (market.current_price - market.previous_close) / market.previous_close * 100
+        dcol = "var(--pos)" if pct >= 0 else "var(--neg)"
+        delta_html = f'<span style="color:{dcol};font:600 13px \'IBM Plex Mono\',monospace;">{pct:+.2f}%</span>'
     st.markdown(f"""
-    <div class="ir-rephead" style="margin-bottom:6px;">
+    <div class="ir-rephead" style="margin-bottom:10px;">
       <div class="ir-repicon">{ticker[:2]}</div>
-      <div><div style="font:600 22px 'IBM Plex Mono',monospace;">{ticker}</div>
-      <div style="font-size:12.5px; color:var(--mut);">{res.get('asset_type','EQUITY').title()} · {price_str}</div></div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font:600 22px 'IBM Plex Mono',monospace;">{ticker}</span>
+          <span style="font-size:11px;color:var(--mut);padding:2px 8px;border:1px solid var(--bd);border-radius:6px;">{res.get('asset_type','EQUITY').title()}</span>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font:600 22px 'IBM Plex Mono',monospace;">{price_str}</div>
+        {delta_html}
+      </div>
     </div>""", unsafe_allow_html=True)
 
-    # ETF / partial warning
     if res.get("warning"):
         st.markdown(f'<div class="ir-warn-banner">⚠️ {res["warning"].replace("⚠️ ","")}</div>', unsafe_allow_html=True)
 
-    # Snapshot tiles
+    # ── Snapshot tiles ──
     tiles = snapshot_metrics(market)
     if tiles:
         cols = st.columns(len(tiles))
         for col, (label, value, delta) in zip(cols, tiles):
             col.metric(label, value, delta)
 
-    # Price chart
+    # ── Price chart ──
     if market and market.price_history and market.price_dates:
         st.plotly_chart(
             price_chart(market.price_dates, market.price_history,
@@ -201,24 +186,48 @@ def render_report(res):
                         sma_50=technical.sma_50 if technical else None),
             use_container_width=True, key=f"price_{ticker}_{datetime.now().timestamp()}")
 
-    # Technical + valuation row
+    # ── Valuation + Technical cards (side by side) ──
+    cur_price = market.current_price if market else None
     c1, c2 = st.columns(2)
-    with c1:
-        if technical and technical.rsi_14 is not None:
-            st.plotly_chart(rsi_gauge(technical.rsi_14), use_container_width=True,
-                            key=f"rsi_{ticker}_{datetime.now().timestamp()}")
-    with c2:
-        if metrics:
-            rows = []
-            for lbl, val in [("P/E", metrics.pe_ratio), ("P/B", metrics.pb_ratio),
-                             ("P/S", metrics.ps_ratio), ("ROE", metrics.roe),
-                             ("Net Margin", metrics.net_profit_margin)]:
-                rows.append(f"| {lbl} | {val if val is not None else 'N/A'} |")
-            st.markdown("**Valuation & Profitability**\n\n| Metric | Value |\n|---|---|\n" + "\n".join(rows))
 
-    # Peer comparison bars
+    with c1:
+        if metrics:
+            rows_html = ""
+            for lbl, val, key in [
+                ("P/E", metrics.pe_ratio, "pe"), ("P/B", metrics.pb_ratio, "pb"),
+                ("P/S", metrics.ps_ratio, "ps"), ("ROE", metrics.roe, "roe"),
+                ("Net Margin", metrics.net_profit_margin, "margin"),
+                ("Debt/Equity", metrics.debt_to_equity, "debt"),
+            ]:
+                vstr = f"{val:.2f}" if val is not None else "N/A"
+                badge = valuation_badge(key, val)
+                rows_html += (f'<tr><td style="color:var(--mut);">{lbl}</td>'
+                              f'<td style="text-align:right;font:500 13px \'IBM Plex Mono\',monospace;">{vstr}</td>'
+                              f'<td style="text-align:right;">{badge}</td></tr>')
+            st.markdown(f'''<div class="ir-metric-card">
+              <div class="ir-card-title">Valuation & Profitability</div>
+              <table class="ir-table">{rows_html}</table></div>''', unsafe_allow_html=True)
+
+    with c2:
+        if technical:
+            rows_html = ""
+            for lbl, val, badge in [
+                ("SMA-20", technical.sma_20, sma_badge(cur_price, technical.sma_20)),
+                ("SMA-50", technical.sma_50, sma_badge(cur_price, technical.sma_50)),
+                ("RSI-14", technical.rsi_14, rsi_badge(technical.rsi_14)),
+                ("MACD", technical.macd_line, macd_badge(technical.macd_line, technical.macd_signal)),
+            ]:
+                vstr = f"{val:.2f}" if val is not None else "N/A"
+                rows_html += (f'<tr><td style="color:var(--mut);">{lbl}</td>'
+                              f'<td style="text-align:right;font:500 13px \'IBM Plex Mono\',monospace;">{vstr}</td>'
+                              f'<td style="text-align:right;">{badge}</td></tr>')
+            st.markdown(f'''<div class="ir-metric-card">
+              <div class="ir-card-title">Technical Analysis</div>
+              <table class="ir-table">{rows_html}</table></div>''', unsafe_allow_html=True)
+
+    # ── Peer comparison bars ──
     if peers_data and len(peers_data) > 1:
-        st.markdown("**Peer Comparison**")
+        st.markdown('<div class="ir-card-title" style="margin-top:8px;">Peer Comparison</div>', unsafe_allow_html=True)
         pc1, pc2 = st.columns(2)
         with pc1:
             fig = metrics_bar(ticker, peers_data, "pe_ratio", "P/E Ratio")
@@ -227,19 +236,25 @@ def render_report(res):
             fig = metrics_bar(ticker, peers_data, "net_profit_margin", "Net Margin")
             if fig: st.plotly_chart(fig, use_container_width=True, key=f"nm_{ticker}_{datetime.now().timestamp()}")
 
-    # News sentiment
+    # ── News sentiment ──
     if news and news.total_articles:
-        sent_color = {"positive": "var(--pos)", "negative": "var(--neg)"}.get(news.overall_sentiment, "var(--mut)")
-        themes = " · ".join(news.key_themes) if news.key_themes else "—"
-        st.markdown(f'<div class="ir-card"><b>News &amp; Sentiment</b> &nbsp;'
-                    f'<span style="color:{sent_color}; font-weight:600;">{news.overall_sentiment.title()}</span><br>'
-                    f'<span style="font-size:12px; color:var(--mut);">{news.total_articles} articles · {themes}</span></div>',
-                    unsafe_allow_html=True)
+        sc = {"positive": "var(--pos)", "negative": "var(--neg)"}.get(news.overall_sentiment, "var(--mut)")
+        sbg = {"positive": "var(--posSoft)", "negative": "var(--negSoft)"}.get(news.overall_sentiment, "var(--chip)")
+        themes = "".join(f'<span class="ir-theme">{t}</span>' for t in (news.key_themes or [])[:4])
+        st.markdown(f'''<div class="ir-metric-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="ir-card-title" style="margin:0;">News & Sentiment</span>
+            <span style="background:{sbg};color:{sc};padding:4px 11px;border-radius:999px;font:600 11px 'IBM Plex Mono',monospace;">{news.overall_sentiment.title()}</span>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--mut);">{news.total_articles} articles analysed</div>
+          <div style="margin-top:8px;">{themes}</div>
+        </div>''', unsafe_allow_html=True)
 
-    # LLM narrative (Bull/Bear/Bottom line)
+    # ── LLM narrative (Bull/Bear/Bottom line) ──
+    st.markdown(f'<div class="ir-narrative">', unsafe_allow_html=True)
     st.markdown(res.get("narrative", ""))
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Disclaimer
     st.caption("Disclaimer: Educational purposes only. Not financial advice.")
 
 
@@ -252,23 +267,13 @@ if not st.session_state.chat:
       <div style="font-size:38px; margin-bottom:10px;">📈</div>
       <div style="font-size:17px; font-weight:600;">שאל אותי על כל מניה אמריקאית</div>
       <div style="font-size:13px; color:var(--mut); margin-top:6px; direction:rtl;">
-        כתוב בחופשיות בעברית או באנגלית, או לחץ על אחת הדוגמאות למטה.</div>
+        כתוב בחופשיות בעברית או באנגלית. הסוכן ימשוך נתונים אמיתיים ויחזיר ניתוח עם גרפים.</div>
+      <div class="ir-chip-row">
+        <span class="ir-chip">תנתח את מניית פייסבוק</span>
+        <span class="ir-chip">תשווה בין Google ל-Meta</span>
+        <span class="ir-chip">איך אפל ביחס ל-QQQ?</span>
+      </div>
     </div>""", unsafe_allow_html=True)
-
-    # Clickable example chips
-    examples = [
-        "תנתח את מניית פייסבוק",
-        "תשווה בין Google ל-Meta",
-        "איך אפל ביחס ל-QQQ?",
-        "analyze Tesla",
-        "תנתח את טבע",
-        "השווה בין NVDA ל-AMD",
-    ]
-    cols = st.columns(3)
-    for i, ex in enumerate(examples):
-        if cols[i % 3].button(ex, key=f"ex_{i}", use_container_width=True):
-            st.session_state.pending_input = ex
-            st.rerun()
 else:
     for msg in st.session_state.chat:
         with st.chat_message(msg["role"]):
@@ -280,10 +285,7 @@ else:
 # ═════════════════════════════════════════════════════════════════════════════
 # Chat input
 # ═════════════════════════════════════════════════════════════════════════════
-typed_input = st.chat_input("כתוב כאן... (לדוגמה: תנתח את אפל, או תשווה בין טבע לפייזר)")
-
-# Use either a clicked example chip or typed text
-user_input = st.session_state.pop("pending_input", None) or typed_input
+user_input = st.chat_input("כתוב כאן... (לדוגמה: תנתח את אפל, או תשווה בין טבע לפייזר)")
 
 if user_input:
     st.session_state.chat.append({"role": "user", "kind": "text", "content": user_input})
@@ -296,12 +298,7 @@ if user_input:
             intent = parse_intent(agent.client, user_input, current_ticker=st.session_state.current_ticker)
         kind = intent.get("intent", "off_topic")
 
-        if kind == "rate_limited":
-            msg = "⏳ " + intent.get("message", "נגמרה מכסת ה-API הזמנית. נסה שוב בעוד מספר דקות.")
-            st.markdown(f'<div class="ir-warn-banner">{msg}</div>', unsafe_allow_html=True)
-            st.session_state.chat.append({"role": "assistant", "kind": "text", "content": msg})
-
-        elif kind in ("analyze", "compare") and intent.get("ticker"):
+        if kind in ("analyze", "compare") and intent.get("ticker"):
             ticker = intent["ticker"]
             peers = intent.get("peers", [])
             label = f"מנתח את {ticker}" + (f" מול {', '.join(peers)}" if peers else "") + "..."

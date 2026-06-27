@@ -157,3 +157,61 @@ def usage_bar(remaining, limit, label="Groq tokens/min"):
         font=dict(family="IBM Plex Sans", size=11),
     )
     return fig
+
+
+# ── Badge helpers — turn a metric value into (display, label, color) ──────────
+
+def _badge(label, kind):
+    """kind: 'pos' | 'neg' | 'neutral' → returns HTML span."""
+    colors = {
+        "pos": ("var(--pos)", "var(--posSoft)"),
+        "neg": ("var(--neg)", "var(--negSoft)"),
+        "neutral": ("var(--mut)", "var(--chip)"),
+    }
+    fg, bg = colors.get(kind, colors["neutral"])
+    return (f'<span style="display:inline-block;padding:3px 8px;border-radius:999px;'
+            f'background:{bg};color:{fg};font:600 10px \'IBM Plex Mono\',monospace;'
+            f'text-transform:uppercase;letter-spacing:.03em;">{label}</span>')
+
+
+def valuation_badge(metric, value):
+    """Return a qualitative badge for a valuation/profitability metric."""
+    if value is None:
+        return _badge("N/A", "neutral")
+    m = metric.lower()
+    if "pe" in m or "p/e" in m:
+        if value > 35: return _badge("Premium", "neg")
+        if value > 20: return _badge("Above avg", "neutral")
+        return _badge("Reasonable", "pos")
+    if "roe" in m:
+        if value > 0.4: return _badge("Strong", "pos")
+        if value > 0.15: return _badge("Healthy", "pos")
+        return _badge("Weak", "neg")
+    if "margin" in m:
+        if value > 0.25: return _badge("Healthy", "pos")
+        if value > 0.10: return _badge("OK", "neutral")
+        return _badge("Thin", "neg")
+    if "debt" in m:
+        if value > 2: return _badge("Elevated", "neg")
+        if value > 1: return _badge("Moderate", "neutral")
+        return _badge("Low", "pos")
+    return _badge("—", "neutral")
+
+
+def rsi_badge(rsi):
+    if rsi is None: return _badge("N/A", "neutral")
+    if rsi > 70: return _badge("Overbought", "neg")
+    if rsi < 30: return _badge("Oversold", "pos")
+    return _badge("Neutral", "neutral")
+
+
+def macd_badge(macd_line, macd_signal):
+    if macd_line is None or macd_signal is None:
+        return _badge("N/A", "neutral")
+    return _badge("Bullish", "pos") if macd_line > macd_signal else _badge("Bearish", "neg")
+
+
+def sma_badge(price, sma):
+    if price is None or sma is None:
+        return _badge("N/A", "neutral")
+    return _badge("Above", "pos") if price > sma else _badge("Below", "neg")
