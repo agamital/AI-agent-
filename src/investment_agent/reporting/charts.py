@@ -113,3 +113,41 @@ def snapshot_metrics(market):
         if market.beta is not None:
             tiles.append(("Beta", f"{market.beta}", None))
     return tiles
+
+
+def usage_bar(remaining, limit, label="Groq tokens/min"):
+    """Horizontal progress bar showing remaining quota."""
+    import plotly.graph_objects as go
+    if remaining is None or limit is None or limit == 0:
+        return None
+    used = limit - remaining
+    pct_remaining = remaining / limit
+    # Color: green if plenty, amber mid, red low
+    if pct_remaining > 0.5:
+        color = _POS
+    elif pct_remaining > 0.2:
+        color = "#d9a514"
+    else:
+        color = _NEG
+
+    fig = go.Figure(go.Bar(
+        x=[remaining], y=[label], orientation="h",
+        marker=dict(color=color), width=0.5,
+        text=[f"{remaining:,} / {limit:,}"], textposition="inside",
+        textfont=dict(family="IBM Plex Mono", size=12, color="white"),
+        hoverinfo="skip",
+    ))
+    fig.add_trace(go.Bar(
+        x=[used], y=[label], orientation="h",
+        marker=dict(color=_GRID), width=0.5, hoverinfo="skip",
+    ))
+    fig.update_layout(
+        barmode="stack", height=70,
+        margin=dict(l=0, r=0, t=4, b=4),
+        paper_bgcolor="white", plot_bgcolor="white",
+        showlegend=False,
+        xaxis=dict(visible=False, range=[0, limit]),
+        yaxis=dict(visible=False),
+        font=dict(family="IBM Plex Sans", size=11),
+    )
+    return fig

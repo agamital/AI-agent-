@@ -18,8 +18,9 @@ from investment_agent.agents.research_agent import InvestmentResearchAgent
 from investment_agent.agents.intent_router import parse_intent
 from investment_agent.agents.structured_output import analyse_structured
 from investment_agent.reporting.charts import (
-    price_chart, rsi_gauge, metrics_bar, snapshot_metrics,
+    price_chart, rsi_gauge, metrics_bar, snapshot_metrics, usage_bar,
 )
+from investment_agent.llm.client import USAGE
 
 # ═════════════════════════════════════════════════════════════════════════════
 st.set_page_config(page_title="Investment Research Agent", page_icon="📈",
@@ -104,6 +105,23 @@ with st.sidebar:
         st.markdown(f'<div style="display:flex;justify-content:space-between;font-size:12.5px;margin:5px 0;">'
                     f'<span><span class="ir-dot" style="background:var(--pos);margin-right:8px;"></span>{name}</span>'
                     f'<span class="mono" style="color:var(--mut);font-size:10.5px;">{note}</span></div>', unsafe_allow_html=True)
+    # ── API quota meters ──
+    st.divider()
+    st.markdown('<div class="ir-side-label">API quota</div>', unsafe_allow_html=True)
+    g = USAGE.get("groq", {})
+    if g.get("remaining_tokens") is not None and g.get("limit_tokens"):
+        fig = usage_bar(g["remaining_tokens"], g["limit_tokens"], "Groq tokens/min")
+        if fig:
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        reset = g.get("reset")
+        if reset:
+            st.markdown(f'<div style="font-size:10.5px;color:var(--fnt);margin-top:-6px;">resets in {reset}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="font-size:11.5px;color:var(--mut);">Groq: no calls yet</div>', unsafe_allow_html=True)
+    gem = USAGE.get("gemini", {})
+    if gem.get("used_requests", 0) > 0:
+        st.markdown(f'<div style="font-size:11.5px;color:var(--mut);margin-top:6px;">Gemini fallback used: {gem["used_requests"]}x</div>', unsafe_allow_html=True)
+
     if st.session_state.last_run:
         st.divider()
         st.markdown('<div class="ir-side-label">Last run</div>', unsafe_allow_html=True)

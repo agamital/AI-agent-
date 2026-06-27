@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +9,15 @@ logger = logging.getLogger(__name__)
 class Message:
     role: str
     content: str
+
+
+# Shared usage tracker — updated after every call, read by the UI
+USAGE = {
+    "groq":   {"limit_tokens": None, "remaining_tokens": None,
+               "limit_requests": None, "remaining_requests": None, "reset": None},
+    "gemini": {"used_requests": 0, "limit_requests": None},
+}
+
 
 class _Provider:
     name = "base"
@@ -33,6 +41,7 @@ class _Provider:
     def _call(self, messages, temperature):
         raise NotImplementedError
 
+
 class _GroqProvider(_Provider):
     name = "groq"
     MODEL = "llama-3.3-70b-versatile"
@@ -42,13 +51,27 @@ class _GroqProvider(_Provider):
         self._client = Groq(api_key=api_key)
 
     def _call(self, messages, temperature):
-        response = self._client.chat.completions.create(
+        # Use raw response to access rate-limit headers
+        raw = self._client.chat.completions.with_raw_response.create(
             model=self.MODEL,
             messages=[{"role": m.role, "content": m.content} for m in messages],
             temperature=temperature,
             max_tokens=4096,
         )
-        return response.choices[0].message.content
+        # Capture rate-limit headers
+        h = raw.headers
+        try:
+            USAGE["groq"]["limit_tokens"] = _to_int(h.get("x-ratelimit-limit-tokens"))
+            USAGE["groq"]["remaining_tokens"] = _to_int(h.get("x-ratelimit-remaining-tokens"))
+            USAGE["groq"]["limit_requests"] = _to_int(h.get("x-ratelimit-limit-requests"))
+            USAGE["groq"]["remaining_requests"] = _to_int(h.get("x-ratelimit-remaining-requests"))
+            USAGE["groq"]["reset"] = h.get("x-ratelimit-reset-tokens")
+        except Exception:
+            pass
+
+        completion = raw.parse()
+        return completion.choices[0].message.content
+
 
 class _GeminiProvider(_Provider):
     name = "gemini"
@@ -75,7 +98,20 @@ class _GeminiProvider(_Provider):
         chat = model.start_chat(history=gemini_history)
         last_msg = history[-1].content if history else ""
         response = chat.send_message(last_msg)
+        # Gemini doesn't expose remaining quota in headers — track request count
+        USAGE["gemini"]["used_requests"] += 1
         return response.text
+
+
+def _to_int(val):
+    """Parse Groq header values like '100000' or '95k' into int."""
+    if val is None:
+        return None
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
 
 class LLMClient:
     def __init__(self, groq_api_key=None, gemini_api_key=None):
