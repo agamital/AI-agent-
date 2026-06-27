@@ -81,30 +81,30 @@ if user_input:
     # 2. Process with Intent Router
     with st.spinner("Parsing request..."):
         intent_data = parse_intent(st.session_state.agent.client, user_input)
-    
+
     # 3. Handle Intent
     with st.chat_message("assistant"):
         if intent_data["intent"] == "analyze" and intent_data["ticker"]:
             ticker = intent_data["ticker"]
             peers = intent_data["peers"]
-            
+
             st.write(f"🔍 Detected Intent: **Analyze {ticker}**" + (f" vs {', '.join(peers)}" if peers else ""))
-            
+
             with st.spinner(f"Generating research report for {ticker}..."):
                 report = st.session_state.agent.analyse(ticker, peers=peers)
                 st.markdown(f'<div class=\"ir-report\">{report}</div>', unsafe_allow_html=True)
                 st.session_state.chat_history.append(("assistant", report))
-        
+
         elif intent_data["intent"] == "followup":
             with st.spinner("Thinking..."):
                 answer = st.session_state.agent.follow_up(user_input)
                 st.markdown(answer)
                 st.session_state.chat_history.append(("assistant", answer))
-        
+
         else:
             msg = "I didn't quite catch that. Try asking to 'Analyze [Stock]' or ask a follow-up question about the last analysis."
             if intent_data["original_language"] == "he":
                 msg = "לא הצלחתי להבין את הבקשה. נסה לבקש 'נתח את [מניה]' או שאל שאלת המשך על הניתוח האחרון."
             st.write(msg)
             st.session_state.chat_history.append(("assistant", msg))
-"
+"""
