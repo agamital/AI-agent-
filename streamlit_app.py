@@ -77,7 +77,7 @@ section[data-testid="stSidebar"] { background:#fff; border-right:1px solid var(-
 def _keys_present():
     return bool(os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"))
 
-for key, default in [("agent", None), ("chat", []), ("current_ticker", None), ("last_run", None)]:
+for key, default in [("agent", None), ("chat", []), ("current_ticker", None), ("last_run", None), ("pending_input", None)]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -116,6 +116,37 @@ with st.sidebar:
         st.markdown(f'<div style="display:flex;justify-content:space-between;font-size:12.5px;margin:5px 0;">'
                     f'<span><span class="ir-dot" style="background:var(--pos);margin-right:8px;"></span>{name}</span>'
                     f'<span class="mono" style="color:var(--mut);font-size:10.5px;">{note}</span></div>', unsafe_allow_html=True)
+    # ── API quota meter ──
+    st.divider()
+    st.markdown('<div class="ir-side-label">API quota</div>', unsafe_allow_html=True)
+    g = USAGE.get("groq", {})
+    shown = False
+    if g.get("daily_limit"):
+        rem = g.get("daily_remaining", 0)
+        lim = g["daily_limit"]
+        pct = rem / lim * 100 if lim else 0
+        fig = usage_bar(rem, lim, "Groq tokens/day")
+        if fig:
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        col = "var(--neg)" if pct < 20 else ("var(--mut)" if pct < 50 else "var(--pos)")
+        lbl = f'<span style="color:{col};font-weight:600;">נשאר {rem:,} ({pct:.0f}%)</span>'
+        if g.get("daily_reset"):
+            lbl += f' <span style="color:var(--fnt);">· מתחדש בעוד {g["daily_reset"]}</span>'
+        st.markdown(f'<div style="font-size:10.5px;margin-top:-6px;">{lbl}</div>', unsafe_allow_html=True)
+        shown = True
+    if g.get("remaining_tokens") is not None and g.get("limit_tokens"):
+        fig = usage_bar(g["remaining_tokens"], g["limit_tokens"], "Groq tokens/min")
+        if fig:
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        if g.get("reset"):
+            st.markdown(f'<div style="font-size:10.5px;color:var(--fnt);margin-top:-6px;">resets in {g["reset"]}</div>', unsafe_allow_html=True)
+        shown = True
+    if not shown:
+        st.markdown('<div style="font-size:11.5px;color:var(--mut);">Groq: no calls yet</div>', unsafe_allow_html=True)
+    gem = USAGE.get("gemini", {})
+    if gem.get("used_requests", 0) > 0:
+        st.markdown(f'<div style="font-size:11.5px;color:var(--mut);margin-top:6px;">Gemini fallback: {gem["used_requests"]}x</div>', unsafe_allow_html=True)
+
     if st.session_state.last_run:
         st.divider()
         st.markdown('<div class="ir-side-label">Last run</div>', unsafe_allow_html=True)
@@ -266,13 +297,22 @@ if not st.session_state.chat:
       <div style="font-size:38px; margin-bottom:10px;">📈</div>
       <div style="font-size:17px; font-weight:600;">שאל אותי על כל מניה אמריקאית</div>
       <div style="font-size:13px; color:var(--mut); margin-top:6px; direction:rtl;">
-        כתוב בחופשיות בעברית או באנגלית. הסוכן ימשוך נתונים אמיתיים ויחזיר ניתוח עם גרפים.</div>
-      <div class="ir-chip-row">
-        <span class="ir-chip">תנתח את מניית פייסבוק</span>
-        <span class="ir-chip">תשווה בין Google ל-Meta</span>
-        <span class="ir-chip">איך אפל ביחס ל-QQQ?</span>
-      </div>
+        כתוב בחופשיות בעברית או באנגלית, או לחץ על אחת הדוגמאות.</div>
     </div>""", unsafe_allow_html=True)
+
+    examples = [
+        "תנתח את מניית פייסבוק",
+        "תשווה בין Google ל-Meta",
+        "איך אפל ביחס ל-QQQ?",
+        "analyze Tesla",
+        "תנתח את טבע",
+        "השווה בין NVDA ל-AMD",
+    ]
+    ccols = st.columns(3)
+    for i, ex in enumerate(examples):
+        if ccols[i % 3].button(ex, key=f"ex_{i}", use_container_width=True):
+            st.session_state.pending_input = ex
+            st.rerun()
 else:
     for msg in st.session_state.chat:
         with st.chat_message(msg["role"]):
@@ -284,7 +324,8 @@ else:
 # ═════════════════════════════════════════════════════════════════════════════
 # Chat input
 # ═════════════════════════════════════════════════════════════════════════════
-user_input = st.chat_input("כתוב כאן... (לדוגמה: תנתח את אפל, או תשווה בין טבע לפייזר)")
+typed = st.chat_input("כתוב כאן... (לדוגמה: תנתח את אפל, או תשווה בין טבע לפייזר)")
+user_input = st.session_state.pop("pending_input", None) or typed
 
 if user_input:
     st.session_state.chat.append({"role": "user", "kind": "text", "content": user_input})
