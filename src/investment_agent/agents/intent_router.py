@@ -40,6 +40,12 @@ def parse_intent(client: LLMClient, user_message: str, current_ticker: str = Non
     ], temperature=0.0)
 
     if not response:
+        # LLM call failed — check if it was a rate limit
+        from investment_agent.llm.client import LAST_ERROR
+        if LAST_ERROR.get("rate_limited"):
+            return {"intent": "rate_limited", "ticker": None, "peers": [],
+                    "original_language": "he", "message": LAST_ERROR.get("message", "")}
+        # Otherwise try a simple ticker regex fallback
         match = re.search(r'\b[A-Z]{1,5}\b', user_message)
         return {
             "intent": "analyze" if match else "off_topic",

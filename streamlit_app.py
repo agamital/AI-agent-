@@ -273,7 +273,12 @@ if user_input:
             intent = parse_intent(agent.client, user_input, current_ticker=st.session_state.current_ticker)
         kind = intent.get("intent", "off_topic")
 
-        if kind in ("analyze", "compare") and intent.get("ticker"):
+        if kind == "rate_limited":
+            msg = "⏳ " + intent.get("message", "נגמרה מכסת ה-API הזמנית. נסה שוב בעוד מספר דקות.")
+            st.markdown(f'<div class="ir-warn-banner">{msg}</div>', unsafe_allow_html=True)
+            st.session_state.chat.append({"role": "assistant", "kind": "text", "content": msg})
+
+        elif kind in ("analyze", "compare") and intent.get("ticker"):
             ticker = intent["ticker"]
             peers = intent.get("peers", [])
             label = f"מנתח את {ticker}" + (f" מול {', '.join(peers)}" if peers else "") + "..."

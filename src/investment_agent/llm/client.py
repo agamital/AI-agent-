@@ -18,6 +18,9 @@ USAGE = {
     "gemini": {"used_requests": 0, "limit_requests": None},
 }
 
+# Set to a human message when ALL providers are rate-limited
+LAST_ERROR = {"rate_limited": False, "message": "", "retry_after": ""}
+
 
 class _Provider:
     name = "base"
@@ -30,7 +33,14 @@ class _Provider:
                 return self._call(messages, temperature)
             except Exception as exc:
                 err = str(exc).lower()
-                is_transient = any(k in err for k in ("rate", "429", "503", "timeout", "connection"))
+                is_rate = "rate" in err or "429" in err or "quota" in err
+                is_transient = is_rate or any(k in err for k in ("503", "timeout", "connection"))
+                if is_rate:
+                    # Try to extract retry time
+                    import re as _re
+                    m = _re.search(r"try again in ([\d.]+m?[\d.]*s)", str(exc))
+                    LAST_ERROR["rate_limited"] = True
+                    LAST_ERROR["retry_after"] = m.group(1) if m else ""
                 if is_transient and attempt < self.MAX_RETRIES - 1:
                     time.sleep(delays[attempt])
                 else:
@@ -137,10 +147,19 @@ class LLMClient:
             raise RuntimeError("No LLM provider available. Set GROQ_API_KEY and/or GEMINI_API_KEY.")
 
     def chat(self, messages, temperature=0.3):
+        LAST_ERROR["rate_limited"] = False
         for provider in self._providers:
             result = provider.chat(messages, temperature)
             if result is not None:
+                LAST_ERROR["rate_limited"] = False
                 return result
+        # All providers failed
+        if LAST_ERROR["rate_limited"]:
+            retry = LAST_ERROR.get("retry_after", "")
+            LAST_ERROR["message"] = (
+                f"נגמרה מכסת ה-API הזמנית" +
+                (f" — נסה שוב בעוד {retry}" if retry else " — נסה שוב בעוד מספר דקות") + "."
+            )
         return None
 
     def chat_with_system(self, system_prompt, user_message, history=None, temperature=0.3):
