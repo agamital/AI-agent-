@@ -114,11 +114,18 @@ with st.sidebar:
 
     # Daily quota (most useful — shows even when exhausted)
     if g.get("daily_limit"):
-        fig = usage_bar(g.get("daily_remaining", 0), g["daily_limit"], "Groq tokens/day")
+        remaining = g.get("daily_remaining", 0)
+        limit = g["daily_limit"]
+        pct = remaining / limit * 100 if limit else 0
+        fig = usage_bar(remaining, limit, "Groq tokens/day")
         if fig:
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        if g.get("daily_remaining", 0) == 0 and g.get("daily_reset"):
-            st.markdown(f'<div style="font-size:10.5px;color:var(--neg);margin-top:-6px;">⏳ מתחדש בעוד {g["daily_reset"]}</div>', unsafe_allow_html=True)
+        # Clear label: how much remains + reset time
+        color = "var(--neg)" if pct < 20 else ("var(--mut)" if pct < 50 else "var(--pos)")
+        label = f'<span style="color:{color};font-weight:600;">נשאר {remaining:,} ({pct:.0f}%)</span>'
+        if g.get("daily_reset"):
+            label += f' <span style="color:var(--fnt);">· מתחדש בעוד {g["daily_reset"]}</span>'
+        st.markdown(f'<div style="font-size:10.5px;margin-top:-6px;">{label}</div>', unsafe_allow_html=True)
         shown_something = True
 
     # Per-minute quota (when calls succeed)

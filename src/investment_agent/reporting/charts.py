@@ -115,31 +115,37 @@ def snapshot_metrics(market):
     return tiles
 
 
+
+
 def usage_bar(remaining, limit, label="Groq tokens/min"):
-    """Horizontal progress bar showing remaining quota."""
+    """Progress bar showing how much quota is USED (fills up as you consume)."""
     import plotly.graph_objects as go
     if remaining is None or limit is None or limit == 0:
         return None
     used = limit - remaining
-    pct_remaining = remaining / limit
-    # Color: green if plenty, amber mid, red low
-    if pct_remaining > 0.5:
+    pct_used = used / limit
+    # Color by how close to the limit: green→amber→red
+    if pct_used < 0.5:
         color = _POS
-    elif pct_remaining > 0.2:
+    elif pct_used < 0.8:
         color = "#d9a514"
     else:
         color = _NEG
 
-    fig = go.Figure(go.Bar(
-        x=[remaining], y=[label], orientation="h",
-        marker=dict(color=color), width=0.5,
-        text=[f"{remaining:,} / {limit:,}"], textposition="inside",
-        textfont=dict(family="IBM Plex Mono", size=12, color="white"),
-        hoverinfo="skip",
-    ))
+    fig = go.Figure()
+    # Used portion (colored, fills from left)
     fig.add_trace(go.Bar(
         x=[used], y=[label], orientation="h",
-        marker=dict(color=_GRID), width=0.5, hoverinfo="skip",
+        marker=dict(color=color), width=0.55,
+        text=[f"{used:,} / {limit:,} used"], textposition="inside",
+        insidetextanchor="start",
+        textfont=dict(family="IBM Plex Mono", size=11, color="white"),
+        hoverinfo="skip",
+    ))
+    # Remaining portion (light grey)
+    fig.add_trace(go.Bar(
+        x=[remaining], y=[label], orientation="h",
+        marker=dict(color=_GRID), width=0.55, hoverinfo="skip",
     ))
     fig.update_layout(
         barmode="stack", height=70,
