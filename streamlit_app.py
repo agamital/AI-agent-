@@ -330,4 +330,3 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-!pip install streamlit -q
