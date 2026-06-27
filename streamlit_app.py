@@ -18,8 +18,10 @@ from investment_agent.agents.research_agent import InvestmentResearchAgent
 from investment_agent.agents.intent_router import parse_intent
 from investment_agent.agents.structured_output import analyse_structured
 from investment_agent.reporting.charts import (
-    price_chart, rsi_gauge, metrics_bar, snapshot_metrics,
+    price_chart, rsi_gauge, metrics_bar, snapshot_metrics, usage_bar,
+    valuation_badge, rsi_badge, macd_badge, sma_badge,
 )
+from investment_agent.llm.client import USAGE
 
 # ═════════════════════════════════════════════════════════════════════════════
 st.set_page_config(page_title="Investment Research Agent", page_icon="📈",
@@ -142,9 +144,6 @@ def render_report(res):
     news = res.get("news")
     peers_data = res.get("peers_data")
 
-    from investment_agent.reporting.charts import (
-        valuation_badge, rsi_badge, macd_badge, sma_badge,
-    )
 
     # ── Report header ──
     price_str = f"${market.current_price}" if market and market.current_price else "—"
