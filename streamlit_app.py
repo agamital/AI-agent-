@@ -108,4 +108,3 @@ if user_input:
                 msg = "לא הצלחתי להבין את הבקשה. נסה לבקש 'נתח את [מניה]' או שאל שאלת המשך."
             st.write(msg)
             st.session_state.chat_history.append(("assistant", msg))
-"""
