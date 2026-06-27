@@ -109,6 +109,19 @@ with st.sidebar:
     st.divider()
     st.markdown('<div class="ir-side-label">API quota</div>', unsafe_allow_html=True)
     g = USAGE.get("groq", {})
+
+    shown_something = False
+
+    # Daily quota (most useful — shows even when exhausted)
+    if g.get("daily_limit"):
+        fig = usage_bar(g.get("daily_remaining", 0), g["daily_limit"], "Groq tokens/day")
+        if fig:
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        if g.get("daily_remaining", 0) == 0 and g.get("daily_reset"):
+            st.markdown(f'<div style="font-size:10.5px;color:var(--neg);margin-top:-6px;">⏳ מתחדש בעוד {g["daily_reset"]}</div>', unsafe_allow_html=True)
+        shown_something = True
+
+    # Per-minute quota (when calls succeed)
     if g.get("remaining_tokens") is not None and g.get("limit_tokens"):
         fig = usage_bar(g["remaining_tokens"], g["limit_tokens"], "Groq tokens/min")
         if fig:
@@ -116,8 +129,11 @@ with st.sidebar:
         reset = g.get("reset")
         if reset:
             st.markdown(f'<div style="font-size:10.5px;color:var(--fnt);margin-top:-6px;">resets in {reset}</div>', unsafe_allow_html=True)
-    else:
+        shown_something = True
+
+    if not shown_something:
         st.markdown('<div style="font-size:11.5px;color:var(--mut);">Groq: no calls yet</div>', unsafe_allow_html=True)
+
     gem = USAGE.get("gemini", {})
     if gem.get("used_requests", 0) > 0:
         st.markdown(f'<div style="font-size:11.5px;color:var(--mut);margin-top:6px;">Gemini fallback used: {gem["used_requests"]}x</div>', unsafe_allow_html=True)

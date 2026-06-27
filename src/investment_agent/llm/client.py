@@ -14,7 +14,8 @@ class Message:
 # Shared usage tracker — updated after every call, read by the UI
 USAGE = {
     "groq":   {"limit_tokens": None, "remaining_tokens": None,
-               "limit_requests": None, "remaining_requests": None, "reset": None},
+               "limit_requests": None, "remaining_requests": None, "reset": None,
+               "daily_limit": None, "daily_used": None, "daily_remaining": None, "daily_reset": None},
     "gemini": {"used_requests": 0, "limit_requests": None},
 }
 
@@ -36,11 +37,21 @@ class _Provider:
                 is_rate = "rate" in err or "429" in err or "quota" in err
                 is_transient = is_rate or any(k in err for k in ("503", "timeout", "connection"))
                 if is_rate:
-                    # Try to extract retry time
                     import re as _re
-                    m = _re.search(r"try again in ([\d.]+m?[\d.]*s)", str(exc))
+                    msg = str(exc)
+                    m = _re.search(r"try again in ([\d.]+m?[\d.]*s)", msg)
                     LAST_ERROR["rate_limited"] = True
                     LAST_ERROR["retry_after"] = m.group(1) if m else ""
+                    # Parse daily quota from the error message itself
+                    lim = _re.search(r"Limit (\d+)", msg)
+                    used = _re.search(r"Used (\d+)", msg)
+                    if lim and used and self.name == "groq":
+                        limit_v = int(lim.group(1))
+                        used_v = int(used.group(1))
+                        USAGE["groq"]["daily_limit"] = limit_v
+                        USAGE["groq"]["daily_used"] = used_v
+                        USAGE["groq"]["daily_remaining"] = max(0, limit_v - used_v)
+                        USAGE["groq"]["daily_reset"] = m.group(1) if m else ""
                 if is_transient and attempt < self.MAX_RETRIES - 1:
                     time.sleep(delays[attempt])
                 else:
