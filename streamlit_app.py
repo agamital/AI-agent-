@@ -66,7 +66,7 @@ section[data-testid="stSidebar"] { background:#fff; border-right:1px solid var(-
 def _keys_present():
     return bool(os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"))
 
-for key, default in [("agent", None), ("chat", []), ("current_ticker", None), ("last_run", None)]:
+for key, default in [("agent", None), ("chat", []), ("current_ticker", None), ("last_run", None), ("pending_input", None)]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -229,13 +229,23 @@ if not st.session_state.chat:
       <div style="font-size:38px; margin-bottom:10px;">📈</div>
       <div style="font-size:17px; font-weight:600;">שאל אותי על כל מניה אמריקאית</div>
       <div style="font-size:13px; color:var(--mut); margin-top:6px; direction:rtl;">
-        כתוב בחופשיות בעברית או באנגלית. הסוכן ימשוך נתונים אמיתיים ויחזיר ניתוח עם גרפים.</div>
-      <div class="ir-chip-row">
-        <span class="ir-chip">תנתח את מניית פייסבוק</span>
-        <span class="ir-chip">תשווה בין Google ל-Meta</span>
-        <span class="ir-chip">איך אפל ביחס ל-QQQ?</span>
-      </div>
+        כתוב בחופשיות בעברית או באנגלית, או לחץ על אחת הדוגמאות למטה.</div>
     </div>""", unsafe_allow_html=True)
+
+    # Clickable example chips
+    examples = [
+        "תנתח את מניית פייסבוק",
+        "תשווה בין Google ל-Meta",
+        "איך אפל ביחס ל-QQQ?",
+        "analyze Tesla",
+        "תנתח את טבע",
+        "השווה בין NVDA ל-AMD",
+    ]
+    cols = st.columns(3)
+    for i, ex in enumerate(examples):
+        if cols[i % 3].button(ex, key=f"ex_{i}", use_container_width=True):
+            st.session_state.pending_input = ex
+            st.rerun()
 else:
     for msg in st.session_state.chat:
         with st.chat_message(msg["role"]):
@@ -247,7 +257,10 @@ else:
 # ═════════════════════════════════════════════════════════════════════════════
 # Chat input
 # ═════════════════════════════════════════════════════════════════════════════
-user_input = st.chat_input("כתוב כאן... (לדוגמה: תנתח את אפל, או תשווה בין טבע לפייזר)")
+typed_input = st.chat_input("כתוב כאן... (לדוגמה: תנתח את אפל, או תשווה בין טבע לפייזר)")
+
+# Use either a clicked example chip or typed text
+user_input = st.session_state.pop("pending_input", None) or typed_input
 
 if user_input:
     st.session_state.chat.append({"role": "user", "kind": "text", "content": user_input})
