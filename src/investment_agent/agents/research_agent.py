@@ -293,7 +293,7 @@ financial advice or a recommendation to buy, sell, or hold any security.*"""
         self.memory.add("user", question)
         messages = [Message(role="system", content=self.SYSTEM_PROMPT)]
         messages.extend(self.memory.get_history())
-        answer = self.client.chat(messages, temperature=0.3)
+        answer = self.client.chat(messages, temperature=0.3, max_tokens=700)
         if answer:
             self.memory.add("assistant", answer)
         else:

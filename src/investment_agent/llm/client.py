@@ -27,11 +27,11 @@ class _Provider:
     name = "base"
     MAX_RETRIES = 3
 
-    def chat(self, messages, temperature=0.3):
+    def chat(self, messages, temperature=0.3, max_tokens=1024):
         delays = [1.0, 2.0, 4.0]
         for attempt in range(self.MAX_RETRIES):
             try:
-                return self._call(messages, temperature)
+                return self._call(messages, temperature, max_tokens)
             except Exception as exc:
                 err = str(exc).lower()
                 is_rate = "rate" in err or "429" in err or "quota" in err
@@ -59,7 +59,7 @@ class _Provider:
                     return None
         return None
 
-    def _call(self, messages, temperature):
+    def _call(self, messages, temperature, max_tokens=1024):
         raise NotImplementedError
 
 
@@ -71,13 +71,13 @@ class _GroqProvider(_Provider):
         from groq import Groq
         self._client = Groq(api_key=api_key)
 
-    def _call(self, messages, temperature):
+    def _call(self, messages, temperature, max_tokens=1024):
         # Use raw response to access rate-limit headers
         raw = self._client.chat.completions.with_raw_response.create(
             model=self.MODEL,
             messages=[{"role": m.role, "content": m.content} for m in messages],
             temperature=temperature,
-            max_tokens=4096,
+            max_tokens=max_tokens,
         )
         # Capture rate-limit headers
         h = raw.headers
@@ -103,14 +103,14 @@ class _GeminiProvider(_Provider):
         genai.configure(api_key=api_key)
         self._genai = genai
 
-    def _call(self, messages, temperature):
+    def _call(self, messages, temperature, max_tokens=1024):
         system_parts = [m.content for m in messages if m.role == "system"]
         history = [m for m in messages if m.role != "system"]
         system_instruction = "\n\n".join(system_parts) if system_parts else None
         model = self._genai.GenerativeModel(
             model_name=self.MODEL,
             system_instruction=system_instruction,
-            generation_config={"temperature": temperature, "max_output_tokens": 4096},
+            generation_config={"temperature": temperature, "max_output_tokens": max_tokens},
         )
         gemini_history = []
         for m in history[:-1]:
@@ -157,10 +157,10 @@ class LLMClient:
         if not self._providers:
             raise RuntimeError("No LLM provider available. Set GROQ_API_KEY and/or GEMINI_API_KEY.")
 
-    def chat(self, messages, temperature=0.3):
+    def chat(self, messages, temperature=0.3, max_tokens=1024):
         LAST_ERROR["rate_limited"] = False
         for provider in self._providers:
-            result = provider.chat(messages, temperature)
+            result = provider.chat(messages, temperature, max_tokens)
             if result is not None:
                 LAST_ERROR["rate_limited"] = False
                 return result

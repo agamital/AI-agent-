@@ -37,7 +37,7 @@ def parse_intent(client: LLMClient, user_message: str, current_ticker: str = Non
     response = client.chat([
         Message(role="system", content=_ROUTER_PROMPT),
         Message(role="user", content=context + user_message),
-    ], temperature=0.0)
+    ], temperature=0.0, max_tokens=200)
 
     if not response:
         # LLM call failed — check if it was a rate limit

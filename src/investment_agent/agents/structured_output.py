@@ -75,7 +75,7 @@ def analyse_structured(agent, ticker: str, peers: list = None) -> dict:
     narrative = agent.client.chat([
         Message(role="system", content=_NARRATIVE_PROMPT),
         Message(role="user", content=f"Data for {ticker}:\n\n{summary}"),
-    ], temperature=0.3)
+    ], temperature=0.3, max_tokens=900)
 
     if not narrative:
         narrative = "_⚠️ ניתוח איכותי לא זמין כרגע (מכסת API נוצלה). הגרפים והנתונים למטה עדיין תקפים._"
