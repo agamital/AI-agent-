@@ -9,14 +9,34 @@ logger = logging.getLogger(__name__)
 
 
 def _fetch_metrics_for_ticker(ticker: str) -> MetricsResult | None:
-    """Run the full SEC + market pipeline for a single ticker and return its metrics."""
+    """Run the full SEC + market pipeline for a single ticker and return its metrics.
+
+    For ETFs (no SEC CIK), build metrics from the ETF's own fund data instead
+    of company financials — using the fund-level P/E where available.
+    """
+    market = get_market_data(ticker)
+
+    # ETF path: no SEC filings, use fund-level metrics
+    if market is not None and getattr(market, "is_etf", False):
+        return MetricsResult(
+            ticker=ticker,
+            pe_ratio=market.etf_pe,          # weighted P/E of holdings
+            pb_ratio=None,                   # not meaningful for a fund
+            ps_ratio=None,
+            roe=None,
+            roa=None,
+            net_profit_margin=None,
+            operating_margin=None,
+            debt_to_equity=None,
+        )
+
+    # Regular company path: requires SEC data
     cik = get_cik_for_ticker(ticker)
     if cik is None:
         return None
 
     facts = get_company_facts(cik)
     financial = extract_annual_financials(facts, ticker) if facts else None
-    market = get_market_data(ticker)
 
     if financial is None and market is None:
         logger.warning("No data available for ticker %s — skipping.", ticker)
