@@ -19,7 +19,7 @@ from investment_agent.agents.intent_router import parse_intent
 from investment_agent.agents.structured_output import analyse_structured
 from investment_agent.reporting.charts import (
     price_chart, rsi_gauge, metrics_bar, snapshot_metrics, usage_bar,
-    valuation_badge, rsi_badge, macd_badge, sma_badge, comparison_table_html, dynamic_comparison_html,
+    valuation_badge, rsi_badge, macd_badge, sma_badge, comparison_table_html, dynamic_comparison_html, comparison_price_chart,
 )
 from investment_agent.llm.client import USAGE
 
@@ -287,6 +287,10 @@ def render_report(res):
         table = dynamic_comparison_html(comp, ticker)
         if table:
             st.markdown(table, unsafe_allow_html=True)
+        # Normalised relative-performance chart (all entities rebased to 100)
+        perf_fig = comparison_price_chart(comp.get("entities", []))
+        if perf_fig:
+            st.plotly_chart(perf_fig, use_container_width=True, key=f"perf_{ticker}_{datetime.now().timestamp()}")
         # Visual P/E bar (works for both stocks and ETFs)
         if peers_data and len(peers_data) > 1:
             fig = metrics_bar(ticker, peers_data, "pe_ratio", "P/E Ratio (lower = cheaper)")
