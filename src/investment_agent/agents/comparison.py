@@ -33,6 +33,8 @@ def _collect_entity(ticker: str) -> dict:
         "market_cap": market.market_cap if market else None,
         "week_52_high": market.week_52_high if market else None,
         "week_52_low": market.week_52_low if market else None,
+        "price_history": market.price_history if market else None,
+        "price_dates": market.price_dates if market else None,
         # filled below
         "pe": None, "pb": None, "ps": None, "roe": None,
         "net_margin": None, "debt_equity": None,

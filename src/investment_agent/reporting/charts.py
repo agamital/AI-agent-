@@ -322,3 +322,51 @@ def dynamic_comparison_html(comparison, main_ticker):
             '<thead><tr style="border-bottom:2px solid var(--bd);">' + head + '</tr></thead>'
             '<tbody>' + rows_html + '</tbody></table>'
             '<div style="font-size:10.5px;color:var(--fnt);margin-top:10px;">' + note + '</div></div>')
+
+
+def comparison_price_chart(entities):
+    """
+    Normalised price comparison: each entity's price rebased to 100 at the start,
+    so relative performance over the period is directly comparable.
+    """
+    import plotly.graph_objects as go
+
+    # Palette for up to 5 lines
+    palette = ["#5849f0", "#0e9f6e", "#e0342a", "#d9a514", "#7c3aed"]
+
+    # Keep only entities that have price history
+    valid = [e for e in entities if e.get("price_history") and len(e["price_history"]) > 1]
+    if len(valid) < 2:
+        return None
+
+    fig = go.Figure()
+    for i, e in enumerate(valid):
+        prices = e["price_history"]
+        dates = e.get("price_dates") or list(range(len(prices)))
+        base_price = prices[0]
+        if not base_price:
+            continue
+        # Rebase to 100
+        normed = [p / base_price * 100 for p in prices]
+        color = palette[i % len(palette)]
+        fig.add_trace(go.Scatter(
+            x=dates, y=normed, mode="lines", name=e["ticker"],
+            line=dict(color=color, width=2),
+        ))
+
+    # 100 baseline
+    fig.add_hline(y=100, line=dict(color="#c7c7d1", width=1, dash="dot"))
+
+    fig.update_layout(
+        height=340,
+        margin=dict(l=10, r=10, t=40, b=10),
+        paper_bgcolor="white", plot_bgcolor="white",
+        font=dict(family="IBM Plex Sans, sans-serif", size=12, color="#17171c"),
+        title=dict(text="Relative Performance (rebased to 100)",
+                   font=dict(size=14, color="#17171c")),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+                    font=dict(family="IBM Plex Mono", size=12)),
+        xaxis=dict(gridcolor="#f1f1f4", zeroline=False),
+        yaxis=dict(gridcolor="#f1f1f4", zeroline=False, title="Indexed price"),
+    )
+    return fig
