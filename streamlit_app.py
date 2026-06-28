@@ -19,7 +19,7 @@ from investment_agent.agents.intent_router import parse_intent
 from investment_agent.agents.structured_output import analyse_structured
 from investment_agent.reporting.charts import (
     price_chart, rsi_gauge, metrics_bar, snapshot_metrics, usage_bar,
-    valuation_badge, rsi_badge, macd_badge, sma_badge,
+    valuation_badge, rsi_badge, macd_badge, sma_badge, comparison_table_html,
 )
 from investment_agent.llm.client import USAGE
 
@@ -255,15 +255,19 @@ def render_report(res):
               <div class="ir-card-title">Technical Analysis</div>
               <table class="ir-table">{rows_html}</table></div>''', unsafe_allow_html=True)
 
-    # ── Peer comparison bars ──
+    # ── Peer comparison: table + bars ──
     if peers_data and len(peers_data) > 1:
-        st.markdown('<div class="ir-card-title" style="margin-top:8px;">Peer Comparison</div>', unsafe_allow_html=True)
+        # Professional head-to-head table
+        table = comparison_table_html(ticker, peers_data)
+        if table:
+            st.markdown(table, unsafe_allow_html=True)
+        # Visual bars
         pc1, pc2 = st.columns(2)
         with pc1:
-            fig = metrics_bar(ticker, peers_data, "pe_ratio", "P/E Ratio")
+            fig = metrics_bar(ticker, peers_data, "pe_ratio", "P/E Ratio (lower = cheaper)")
             if fig: st.plotly_chart(fig, use_container_width=True, key=f"pe_{ticker}_{datetime.now().timestamp()}")
         with pc2:
-            fig = metrics_bar(ticker, peers_data, "net_profit_margin", "Net Margin")
+            fig = metrics_bar(ticker, peers_data, "net_profit_margin", "Net Margin (higher = better)")
             if fig: st.plotly_chart(fig, use_container_width=True, key=f"nm_{ticker}_{datetime.now().timestamp()}")
 
     # ── News sentiment ──

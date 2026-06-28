@@ -17,18 +17,25 @@ logger = logging.getLogger(__name__)
 
 _NARRATIVE_PROMPT = """You are a senior equity research analyst.
 Based ONLY on the data provided, write a CONCISE qualitative analysis.
-Do NOT repeat the raw numbers in tables — those are shown separately as charts.
+Do NOT repeat raw numbers in tables — those are shown separately as charts.
+
+If PEER DATA is provided, your analysis MUST be COMPARATIVE — explicitly contrast
+the main stock against its peers (which is cheaper on P/E, which has stronger
+margins/ROE, which carries more risk). Reference peers by ticker.
 
 Output EXACTLY these sections in Markdown, nothing else:
 
 ## 🟢 Bull Case
 3-4 short bullet points — data-backed reasons the stock could outperform.
+When peers exist, frame at least 2 points relative to the peers.
 
 ## 🔴 Bear Case
 3-4 short bullet points — data-backed risks.
+When peers exist, note where the stock looks weaker than peers.
 
 ## 📌 Bottom Line
-2-3 sentences summarising the picture. Never give a buy/sell recommendation.
+2-3 sentences. When comparing, state which stock screens better on valuation
+vs profitability and why. Never give a buy/sell recommendation.
 
 Keep it tight. No preamble, no disclaimer (added separately)."""
 

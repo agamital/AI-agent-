@@ -215,3 +215,65 @@ def sma_badge(price, sma):
     if price is None or sma is None:
         return _badge("N/A", "neutral")
     return _badge("Above", "pos") if price > sma else _badge("Below", "neg")
+
+
+# ── Peer comparison table — professional side-by-side with winner highlighting ──
+
+def comparison_table_html(ticker, peers_data):
+    """Build a rich HTML comparison table; highlights best value per metric."""
+    if not peers_data or len(peers_data) < 2:
+        return None
+
+    metrics = [
+        ("P/E Ratio", "pe_ratio", True),
+        ("P/B Ratio", "pb_ratio", True),
+        ("P/S Ratio", "ps_ratio", True),
+        ("ROE", "roe", False),
+        ("Net Margin", "net_profit_margin", False),
+        ("Debt/Equity", "debt_to_equity", True),
+    ]
+    tickers = [p.ticker for p in peers_data]
+
+    head = '<th style="text-align:left;padding:10px 12px;">Metric</th>'
+    for t in tickers:
+        is_main = (t == ticker)
+        bg = "background:var(--accSoft);" if is_main else ""
+        head += (f'<th style="text-align:center;padding:10px 12px;{bg}'
+                 f'border-radius:8px 8px 0 0;font:600 13px \'IBM Plex Mono\',monospace;'
+                 f'color:{"var(--acc)" if is_main else "#17171c"};">{t}</th>')
+
+    rows = ""
+    for label, attr, lower_better in metrics:
+        vals = [getattr(p, attr, None) for p in peers_data]
+        present = [(i, v) for i, v in enumerate(vals) if v is not None]
+        winner_idx = None
+        if present:
+            winner_idx = (min if lower_better else max)(present, key=lambda x: x[1])[0]
+
+        cells = f'<td style="padding:9px 12px;color:var(--mut);font-size:12.5px;">{label}</td>'
+        for i, v in enumerate(vals):
+            if v is None:
+                disp, style = "N/A", "color:var(--fnt);"
+            else:
+                if attr in ("roe", "net_profit_margin"):
+                    disp = f"{v*100:.1f}%"
+                else:
+                    disp = f"{v:.2f}"
+                if i == winner_idx:
+                    style = "color:var(--pos);font-weight:700;background:var(--posSoft);border-radius:6px;"
+                else:
+                    style = "color:#17171c;"
+            cells += (f'<td style="padding:9px 12px;text-align:center;'
+                      f'font:500 13px \'IBM Plex Mono\',monospace;{style}">{disp}</td>')
+        rows += f'<tr style="border-bottom:1px solid var(--bd);">{cells}</tr>'
+
+    return f'''<div class="ir-metric-card">
+      <div class="ir-card-title">Head-to-Head Comparison</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:2px solid var(--bd);">{head}</tr></thead>
+        <tbody>{rows}</tbody>
+      </table>
+      <div style="font-size:10.5px;color:var(--fnt);margin-top:10px;">
+        🟢 = best value · lower is better for P/E·P/B·P/S·D/E, higher for ROE·margins
+      </div>
+    </div>'''
