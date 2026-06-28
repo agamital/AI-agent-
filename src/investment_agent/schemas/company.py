@@ -40,6 +40,13 @@ class MarketData(BaseModel):
     beta: Optional[float] = None
     price_history: Optional[list[float]] = None
     price_dates: Optional[list[str]] = None
+    # ETF-specific fields (None for regular stocks)
+    is_etf: bool = False
+    etf_pe: Optional[float] = None
+    etf_yield: Optional[float] = None
+    etf_3y_return: Optional[float] = None
+    etf_total_assets: Optional[float] = None
+    etf_category: Optional[str] = None
 
 
 class MetricsResult(BaseModel):

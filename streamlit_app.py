@@ -208,6 +208,32 @@ def render_report(res):
         for col, (label, value, delta) in zip(cols, tiles):
             col.metric(label, value, delta)
 
+    # ── ETF-specific metrics card ──
+    if market and getattr(market, "is_etf", False):
+        etf_rows = []
+        if market.etf_pe is not None:
+            etf_rows.append(("Weighted P/E", f"{market.etf_pe:.1f}"))
+        if market.etf_yield is not None:
+            etf_rows.append(("Dividend Yield", f"{market.etf_yield*100:.2f}%"))
+        if market.etf_3y_return is not None:
+            etf_rows.append(("3-Year Avg Return", f"{market.etf_3y_return*100:.1f}%"))
+        if market.etf_total_assets:
+            aum = market.etf_total_assets
+            aum_s = f"${aum/1e12:.2f}T" if aum >= 1e12 else f"${aum/1e9:.1f}B"
+            etf_rows.append(("Total Assets (AUM)", aum_s))
+        if market.etf_category:
+            etf_rows.append(("Category", market.etf_category))
+        if etf_rows:
+            rows_html = "".join(
+                f'<tr><td style="color:var(--mut);padding:8px 4px;">{l}</td>'
+                f'<td style="text-align:right;font:500 13px \'IBM Plex Mono\',monospace;padding:8px 4px;">{v}</td></tr>'
+                for l, v in etf_rows
+            )
+            st.markdown(f'''<div class="ir-metric-card">
+              <div class="ir-card-title">📊 ETF Fund Metrics</div>
+              <table class="ir-table">{rows_html}</table>
+            </div>''', unsafe_allow_html=True)
+
     # ── Price chart ──
     if market and market.price_history and market.price_dates:
         st.plotly_chart(

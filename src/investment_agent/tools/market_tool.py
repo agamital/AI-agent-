@@ -42,6 +42,12 @@ def get_market_data(ticker: str) -> MarketData | None:
             beta=beta,
             price_history=price_history,
             price_dates=price_dates,
+            is_etf=(info.get("quoteType") == "ETF"),
+            etf_pe=info.get("trailingPE") if info.get("quoteType") == "ETF" else None,
+            etf_yield=info.get("yield") if info.get("quoteType") == "ETF" else None,
+            etf_3y_return=info.get("threeYearAverageReturn") if info.get("quoteType") == "ETF" else None,
+            etf_total_assets=info.get("totalAssets") if info.get("quoteType") == "ETF" else None,
+            etf_category=info.get("category") if info.get("quoteType") == "ETF" else None,
         )
     except Exception as exc:
         logger.error("Failed to fetch market data for %s: %s", ticker, exc)
