@@ -1,156 +1,166 @@
-﻿# Investment Research Agent
+# 📈 Investment Research Agent
 
-Python-based AI agent for investment research on publicly traded U.S. companies.
+An AI-powered investment research agent for U.S. publicly traded stocks and ETFs.
+The user chats with it in **Hebrew or English** ("תנתח את אפל", "compare Google with Meta",
+"איך אפל ביחס ל-QQQ?"), and the agent retrieves **real data** from SEC filings,
+market feeds and news, then produces a **structured visual research report** —
+charts, valuation/technical cards, peer comparisons, and an LLM-written Bull/Bear case.
 
-The system receives a stock ticker and optional peer tickers, retrieves financial and market data, calculates financial and technical metrics, and generates a structured investment research report.
+🔗 **Live app:** [ai-stock-agent-ziv-tal.streamlit.app](https://ai-stock-agent-ziv-tal.streamlit.app)
 
-This project is an educational AI Agents project. It is designed as a decision-support tool only. It does not provide personalized financial advice, automatic buy or sell recommendations, or trading execution.
+> ⚠️ Educational project only. Not financial advice, not a buy/sell recommendation,
+> and not a trading tool.
 
-## Project Goal
+---
 
-Build a modular investment research agent that can:
+## ✨ What it does
 
-- Receive a stock ticker from the user
-- Retrieve structured company and financial data
-- Retrieve historical market price data
-- Calculate financial metrics
-- Calculate basic technical indicators
-- Compare the company with selected peers
-- Generate a structured research report
-- Clearly state assumptions, missing data, and limitations
+- **Free-text chat interface** (Hebrew + English) — no forms. Type naturally and the
+  agent understands intent: analyze a stock, compare against peers, ask a follow-up.
+- **Real data, no hallucinated numbers** — all financials, prices and metrics come
+  from live tools. The LLM only *interprets*; it never invents figures.
+- **Visual reports** — interactive Plotly charts (price history, RSI gauge, peer bars),
+  snapshot tiles, and colour-coded badges (Premium / Strong / Bullish / Overbought).
+- **Smart routing** — maps company names to tickers (פייסבוק → META, אפל → AAPL),
+  resolves context ("how does *it* compare to QQQ?" after analysing AAPL).
+- **ETF / crypto awareness** — detects ETFs (SPY, QQQ) and runs technical-only analysis;
+  blocks unsupported assets (crypto, forex, non-US) with a clear message.
+- **Live API quota meter** — sidebar shows remaining Groq tokens and reset time.
+- **Graceful degradation** — when the API quota runs out, charts still render from data
+  and the user gets a clear "quota exhausted, retry in X" message instead of a crash.
 
-## Architecture Principle
+---
 
-Python tools retrieve data and calculate metrics.
+## 🏗️ Architecture
 
-LLM agents interpret the results and generate structured explanations.
+The core principle: **Python tools fetch & compute data; the LLM interprets it.**
+The LLM never calculates a financial metric or invents a number.
 
-The LLM should not invent financial numbers or calculate financial metrics by itself.
+```
+User (Hebrew/English chat)
+        │
+        ▼
+  Intent Router  ──►  {analyze | compare | followup | off_topic} + ticker + peers
+        │
+        ▼
+ Research Agent  ──►  orchestrates tools + memory
+        │
+        ├─ Tools (data, no LLM):
+        │    • sec_tool       — SEC EDGAR 10-K financials
+        │    • market_tool    — yfinance price / market cap / beta / history
+        │    • metrics_tool   — P/E, P/B, P/S, ROE, ROA, margins, D/E
+        │    • technical_tool — SMA, EMA, RSI, MACD
+        │    • peer_tool      — side-by-side peer comparison
+        │    • news_tool      — headlines → sentiment + themes
+        │
+        ├─ Validation:
+        │    • ticker_validator — asset type, ETF/crypto detection
+        │    • data_validator   — missing-field warnings
+        │
+        ├─ Charts (data → Plotly, no LLM tokens):
+        │    • price_chart, rsi_gauge, metrics_bar, snapshot_metrics
+        │    • usage_bar + colour badges
+        │
+        └─ LLM (Groq Llama-3.3-70B, Gemini fallback):
+             • narrative only — Bull / Bear / Bottom-line + follow-ups
+        │
+        ▼
+   Streamlit UI  ──►  chat + visual report cards
+```
 
-## Tools (implemented)
+### LLM setup
+- **Primary:** Groq `llama-3.3-70b-versatile` (fast, free tier)
+- **Fallback:** Google `gemini-2.5-flash`
+- Automatic retry with exponential backoff; rate-limit detection with friendly messaging.
 
-All five tools are built, are pure Python (no LLM calls), and handle their own
-errors — returning `None` and logging on failure rather than crashing.
+---
 
-- **SEC EDGAR tool** (`tools/sec_tool.py`) — ticker → CIK lookup (disk-cached),
-  company-facts retrieval, and extraction of the latest annual financials.
-- **Market data tool** (`tools/market_tool.py`) — current price, 52-week range,
-  market cap, beta, and 6 months of price history via yfinance.
-- **Financial metrics calculator** (`tools/metrics_tool.py`) — valuation and
-  profitability ratios (P/E, P/B, P/S, ROE, ROA, D/E, margins).
-- **Technical indicators calculator** (`tools/technical_tool.py`) — SMA, EMA,
-  RSI (Wilder's smoothing), and MACD.
-- **Peer comparison tool** (`tools/peer_tool.py`) — runs the full data pipeline
-  for a company and its peers and returns side-by-side metrics.
+## 📂 Project structure
 
-## Data Validation (implemented)
+```
+streamlit_app.py              # Main UI: chat + visual report rendering
+src/investment_agent/
+├── agents/
+│   ├── research_agent.py      # Orchestrator: tools + memory + 6-part system prompt
+│   ├── intent_router.py       # Hebrew/English → structured intent
+│   └── structured_output.py   # Runs pipeline, returns data + short LLM narrative
+├── tools/
+│   ├── sec_tool.py            # SEC EDGAR financials
+│   ├── market_tool.py         # yfinance market data
+│   ├── metrics_tool.py        # Valuation & profitability ratios
+│   ├── technical_tool.py      # SMA / EMA / RSI / MACD
+│   ├── peer_tool.py           # Peer comparison
+│   └── news_tool.py           # News sentiment
+├── validation/
+│   ├── ticker_validator.py    # Asset-type detection, ETF/crypto handling
+│   └── data_validator.py      # Data-quality warnings
+├── reporting/
+│   └── charts.py              # Plotly figures + badges (no LLM)
+├── llm/
+│   └── client.py              # Groq + Gemini client, retry, usage tracking
+└── schemas/                   # Pydantic models (company, report)
+```
 
-`validation/data_validator.py` inspects a data model for missing (`None`) fields
-and returns plain-English warnings, so an agent can disclose data gaps instead of
-letting the LLM invent values.
+---
 
-## Planned Agents (not yet built)
+## 🧠 System prompt design
 
-- Investment Research Orchestrator
-- Fundamental Analysis Agent
-- Technical Analysis Agent
-- Peer Comparison Agent
-- Report Generation Agent
+The agent's system prompt is structured into six components:
+**Persona** (senior equity analyst), **Goal**, **Constraints** (never invent numbers,
+never recommend buy/sell), **Asset-type awareness** (ETF vs company), **Technical
+interpretation rules** (consistent bullish/bearish logic), and a fixed **Output format**
+(8 sections from Company Snapshot to Bull/Bear case).
 
-## Main Project Structure
+---
 
-investment_research_agent/
-  configs/
-  data/
-  src/
-    investment_agent/
-      llm/
-      agents/
-      tools/
-      memory/
-      schemas/
-      validation/
-      reporting/
-      app/
-  scripts/
-  reports/
-  tests/
+## 🚀 Running locally
 
-## Installation
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
 
-This project uses Poetry.
+# 2. Set API keys (create a .env file — see .env.example)
+GROQ_API_KEY=your_groq_key
+GEMINI_API_KEY=your_gemini_key     # optional fallback
+NEWS_API_KEY=your_newsapi_key      # optional, for news sentiment
 
-Install dependencies:
+# 3. Run
+streamlit run streamlit_app.py
+```
 
-poetry install
+### Deployment
+The app is deployed on **Streamlit Cloud**, auto-deploying from the `main` branch.
+API keys are stored in Streamlit Secrets (not in the repo).
 
-Add main dependencies if needed:
+---
 
-poetry add openai python-dotenv pydantic pyyaml requests pandas numpy yfinance streamlit
+## 💬 Example queries
 
-Add development dependencies:
+| You type | The agent does |
+|---|---|
+| `תנתח את מניית פייסבוק` | Full report on **META** (maps the name correctly) |
+| `compare Google with Meta` | Side-by-side **GOOGL vs META** comparison |
+| `איך אפל ביחס ל-QQQ?` | Adds **QQQ** as a peer to the current **AAPL** analysis |
+| `מה ה-RSI אומר?` | Answers from memory about the current stock |
+| `analyze SPY` | ETF-aware technical-only report |
 
-poetry add --group dev pytest ruff black
+---
 
-Optional, if using Groq:
+## ⚙️ Token efficiency
 
-poetry add groq
+To stay within the free-tier API limits, the architecture is deliberately
+token-light: **charts and tables are built from raw data** (zero LLM tokens),
+and the LLM is called only for the short qualitative narrative. Each call also
+requests a right-sized `max_tokens` (router: 200, narrative: 900, follow-up: 700)
+instead of a fixed 4096 — cutting token usage by roughly 70%.
 
-## Environment Variables
+---
 
-Create a local .env file based on .env.example.
+## 📋 Tech stack
 
-Never commit the real .env file to GitHub.
+**Python** · **Streamlit** · **Plotly** · **Groq (Llama 3.3 70B)** · **Google Gemini** ·
+**yfinance** · **SEC EDGAR API** · **NewsAPI** · **Pydantic**
 
-## Testing (implemented)
+---
 
-The tools and data validator are covered by 22 unit tests. The pure-math tools
-(metrics, technical indicators, validator) are tested directly; the network tools
-(SEC EDGAR, yfinance) are tested with mocked responses, so the whole suite runs
-offline in under one second.
-
-Run tests:
-
-poetry run pytest -q
-
-## Planned Commands (not yet built)
-
-Run one analysis:
-
-poetry run python scripts/run_agent.py --ticker INTU --peers ADBE CRM NOW
-
-Run Streamlit UI:
-
-poetry run streamlit run src/investment_agent/app/streamlit_app.py
-
-## Team Workflow
-
-1. Pull latest main.
-2. Create a feature branch.
-3. Work only on the assigned task.
-4. Run tests before pushing.
-5. Commit with a clear message.
-6. Push the branch.
-7. Open a Pull Request.
-
-## Important Rules
-
-- Do not commit API keys.
-- Do not commit .env.
-- Do not work directly on main after initial setup.
-- Keep Python calculations inside tools.
-- Keep LLM usage inside agents.
-- Every important tool should have tests.
-- If data is missing, report it clearly instead of inventing values.
-
-## Project Status
-
-**Days 1–2 complete (Foundation).** Done so far:
-
-- All Pydantic data schemas
-- All 5 data/calculation tools, with error handling
-- Data validator for missing-field detection
-- 22 passing unit tests (pure-math direct, network tools mocked)
-
-Next: Groq LLM client + the 6-component system prompt (Day 3), then conversational
-memory and the LangGraph agents/orchestrator.
+*Built as an educational AI Agents project.*
