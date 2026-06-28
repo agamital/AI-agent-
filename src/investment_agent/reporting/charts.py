@@ -277,3 +277,48 @@ def comparison_table_html(ticker, peers_data):
         🟢 = best value · lower is better for P/E·P/B·P/S·D/E, higher for ROE·margins
       </div>
     </div>'''
+
+
+def dynamic_comparison_html(comparison, main_ticker):
+    """Render the dynamic comparison dict (from build_comparison) as an HTML table."""
+    if not comparison or not comparison.get("rows"):
+        return None
+    entities = comparison.get("entities", [])
+    if len(entities) < 2:
+        return None
+
+    tickers = [e["ticker"] for e in entities]
+    mode = comparison.get("mode", "stock")
+    title = "Fund / Index Comparison" if mode == "etf" else "Head-to-Head Comparison"
+
+    head = '<th style="text-align:left;padding:10px 12px;">Metric</th>'
+    for t in tickers:
+        is_main = (t == main_ticker)
+        bg = "background:var(--accSoft);" if is_main else ""
+        fg = "var(--acc)" if is_main else "#17171c"
+        head += ('<th style="text-align:center;padding:10px 12px;' + bg +
+                 "font:600 13px 'IBM Plex Mono',monospace;color:" + fg + ';">' + t + '</th>')
+
+    rows_html = ""
+    for row in comparison["rows"]:
+        cells = '<td style="padding:9px 12px;color:var(--mut);font-size:12.5px;">' + row["label"] + '</td>'
+        for disp, is_winner in row["values"]:
+            if is_winner:
+                style = "color:var(--pos);font-weight:700;background:var(--posSoft);border-radius:6px;"
+            elif disp == "N/A":
+                style = "color:var(--fnt);"
+            else:
+                style = "color:#17171c;"
+            cells += ('<td style="padding:9px 12px;text-align:center;'
+                      "font:500 13px 'IBM Plex Mono',monospace;" + style + '">' + str(disp) + '</td>')
+        rows_html += '<tr style="border-bottom:1px solid var(--bd);">' + cells + '</tr>'
+
+    note = ("\U0001F7E2 = best on that metric" if mode == "stock"
+            else "\U0001F7E2 = best \u00b7 ETF metrics (funds have no per-company ratios)")
+
+    return ('<div class="ir-metric-card">'
+            '<div class="ir-card-title">' + title + '</div>'
+            '<table style="width:100%;border-collapse:collapse;">'
+            '<thead><tr style="border-bottom:2px solid var(--bd);">' + head + '</tr></thead>'
+            '<tbody>' + rows_html + '</tbody></table>'
+            '<div style="font-size:10.5px;color:var(--fnt);margin-top:10px;">' + note + '</div></div>')

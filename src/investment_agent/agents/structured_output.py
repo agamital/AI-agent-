@@ -70,11 +70,14 @@ def analyse_structured(agent, ticker: str, peers: list = None) -> dict:
     # Collect data (reuses the agent's pipeline + cache)
     data = agent._collect_data(ticker, asset_type=validation["asset_type"])
 
-    # Peers
+    # Peers — data + dynamic comparison (adapts to stock-vs-stock or ETF)
     peers_data = None
+    comparison = None
     if peers:
         from investment_agent.tools.peer_tool import get_peer_comparison
         peers_data = get_peer_comparison(ticker, peers)
+        from investment_agent.agents.comparison import build_comparison
+        comparison = build_comparison(ticker, peers)
 
     # Build a compact data summary for the narrative LLM call
     summary = agent._build_data_summary(ticker, data, peers_data)
@@ -103,6 +106,7 @@ def analyse_structured(agent, ticker: str, peers: list = None) -> dict:
         "technical": data.get("technical"),
         "news": data.get("news"),
         "peers_data": peers_data,
+        "comparison": comparison,
         "narrative": narrative,
         "warnings": data.get("warnings", []),
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
